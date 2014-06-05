@@ -2,7 +2,7 @@ import bz2
 
 from astropy.wcs import wcs
 from scipy.interpolate import interp2d
-from chefs.contrib.sextractor import SExtractor
+from pysextractor import SExtractor
 import numpy as np
 import matplotlib.pyplot as plt
 
