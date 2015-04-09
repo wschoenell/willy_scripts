@@ -53,3 +53,9 @@ coverage.xml
 docs/_build/
 
 .idea/
+
+#pysextractor
+py-sextractor.conv
+py-sextractor.nnw
+py-sextractor.param
+py-sextractor.sex

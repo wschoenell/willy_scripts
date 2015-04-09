@@ -1,4 +1,5 @@
 #!/bin/sh
+# William @ Granada Apr, 2015.
 # Script to ping some address and close the dome if lost contact.
 # Add to crontab to run every 20min:
 # */20 * * * * /path/to/ping_test.sh ip.addres.to.ping 
