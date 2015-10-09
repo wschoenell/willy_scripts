@@ -86,7 +86,9 @@ for night in range(nights_number):
         print bold(green('Transfering night: %s...' % night))
 
         # Create directories...
-        print('ssh %s mkdir -p %s/%s' % (remote.split(':')[0], remote.split(':')[1], this_night))
+        cmd = 'ssh %s mkdir -p %s/%s' % (remote.split(':')[0], remote.split(':')[1], this_night)
+        print(bold('Running: ')+cmd)
+        os.system(cmd)
 
         # Transfer filelist:
         aux_filenames = 'filelist_%s.csv' % this_night
@@ -95,13 +97,18 @@ for night in range(nights_number):
             if aux_header:
                 f.write('# wget, image_type, object_name, filter, filename\n')
             f.writelines(targets_list)
-        os.system('sort filelist_%s.csv | uniq > l && mv l filelist_%s.csv' % (this_night, this_night))
-        print('rsync -av --progress %s %s/' % (aux_filenames, remote))
+        cmd = 'sort filelist_%s.csv | uniq > l && mv l filelist_%s.csv' % (this_night, this_night)
+        print(bold('Running: ')+cmd)
+        os.system(cmd)
+        cmd = 'rsync -av --progress %s %s/' % (aux_filenames, remote)
+        os.system(cmd)
 
         # Transfer files
         aux_filenames = tempfile.mktemp()
         with open(aux_filenames, 'w') as f:
             f.writelines(transfer_list)
-        print('rsync -av --progress --include-file %s %s/%s/' % (aux_filenames, remote, this_night)) #os.system
+        print(bold('Running: ')+cmd)
+        cmd = 'rsync -av --progress --include-from %s %s/%s/' % (aux_filenames, remote, this_night)
+        os.system(cmd)
         os.unlink(aux_filenames)
 
