@@ -3,6 +3,7 @@ import os
 import sys
 import datetime as dt
 import tempfile
+
 import pyfits as fits
 
 __author__ = 'william'
@@ -47,7 +48,7 @@ else:
 with open(object_file) as f:
     object_list = f.readlines()
 
-object_list = [o.strip() for o in object_list]
+object_list = [o.strip().upper() for o in object_list]
 
 
 for night in range(nights_number):
@@ -61,26 +62,38 @@ for night in range(nights_number):
     else:
         for root, directory, files in os.walk(image_dir):
             for filename in fnmatch.filter(files, "*.fits"):
+                header = fits.getheader('%s/%s' % (root, filename))
                 try:
-                    header = fits.getheader('%s/%s' % (root, filename))
-                    objname = header['OBJECT']
+                    filter_name = header['FILTER']
+                except KeyError:
+                    filter_name = None
+                try:
+                    objname = header['OBJECT'].upper()
+                except KeyError:
+                    objname = None
+                try:
+                    objname = header['OBJECT'].upper()
                     print('Filename: %s - Object: %s' % (filename, objname))
                     if objname in object_list:
                         transfer_list.append('%s/%s\n' % (root, filename))
-                        targets_list.append('wget -c %s/%s/%s #,%s,%s,%s\n' % (http_root, this_night, filename.strip(),
-                                                                               header['IMAGETYP'], objname, filename))
+                        targets_list.append('wget -c %s/%s/%s #,%s,%s,%s,%s\n' %
+                                            (http_root, this_night, filename.strip(), header['IMAGETYP'], objname,
+                                             filter_name, filename))
                 except KeyError:
-                    print bold(yellow('Skipping %s. No OBJECT keyword.' % filename))
+                    print bold(red('Skipping %s. No IMAGETYP keyword.' % filename))
 
     if len(transfer_list) > 0:
         print bold(green('Transfering night: %s...' % night))
 
         # Transfer filelist:
         aux_filenames = tempfile.mkdtemp()
-        with open('caca.txt', 'w') as f:
-            f.write('# wget, image_type, object_name, filename\n')
+        aux_header = True if not os.path.exists('filelist_%s.csv' % this_night) else False
+        with open('filelist_%s.csv' % this_night, 'a') as f:
+            if aux_header:
+                f.write('# wget, image_type, object_name, filter, filename\n')
             f.writelines(targets_list)
-        print('rsync -avR --progress %s %s/filelist_%s.csv' % (aux_filenames, remote, this_night)) #os.system
+        os.system('sort filelist_%s.csv | uniq > l && mv l filelist_%s.csv' % (this_night, this_night))
+        print('rsync -avR --progress %s %s/' % (aux_filenames, remote))
         # os.unlink(aux_filenames)
 
         # Transfer files
