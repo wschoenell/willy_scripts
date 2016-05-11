@@ -1,15 +1,16 @@
 import os
-
 import numpy as np
 import matplotlib.pyplot as plt
 
-pointings = 256
-skip = 0  # Use this to skip N first pointings to resume a model session
+pointings = 200
+skip = 49  # Use this to skip N first pointings to resume a model session
 altitude_min = 25
 altitude_max = 85
 azimuth_min = 5
 azimuth_max = 346
 plot = True
+save_file = None  # 'dome_pointing.txt'  # None
+load_file = None  # 'lna_dome_model_data.txt'  # None
 
 use_starname = True  # Use this if the method does not support pointing by chimera
 use_mac_clipboard = True  # Will copy name of the stars to the clipboard. Only works on mac.
@@ -60,17 +61,39 @@ map_points[:, 1] = radius
 # Order by azimuth to avoid unecessary dome moves.
 map_points = map_points[np.lexsort((map_points[:, 1], map_points[:, 0]))]
 
+if load_file is not None:
+    skip_too_close = list()
+    # points_save = list()
+    load_model = np.loadtxt(load_file).T[:2]
+    for point_load in load_model.T:
+        offset = 0
+        for i in range(len(map_points)):
+            map_point = map_points[i - offset]
+            if np.sqrt((point_load[0] - map_point[0]) ** 2 + (point_load[1] - map_point[1]) ** 2) < 4:
+                skip_too_close.append(map_point)
+                map_points = np.delete(map_points, i, axis=0)
+                offset += 1
+    skip_too_close = np.array(skip_too_close)
+
 if plot:
     plt.clf()
     ax = plt.subplot(111, projection='polar')
     ax.set_theta_zero_location("N")
-    ax.scatter(map_points[:, 0] * np.pi / 180., 90 - map_points[:, 1], color='r', s=20)
+    ax.scatter(map_points[:, 0] * np.pi / 180., 90 - map_points[:, 1], color='r', alpha=50, s=20)
+    if load_file is not None:
+        ax.scatter(load_model[0] * np.pi / 180., 90 - load_model[1], color='green', s=20)
+        ax.scatter(skip_too_close[:, 0] * np.pi / 180., 90 - skip_too_close[:, 1], color='black', s=20)
+        print 'Skip %d' % len(skip_too_close)
     ax.grid(True)
     ax.set_ylim(90 - altitude_min + 10, 0)
     ax.set_yticklabels(90 - np.array(ax.get_yticks(), dtype=int))
-    plt.show()
+    # plt.show()
+    plt.draw()
 
-i = 0
+if save_file is not None:
+    np.savetxt(save_file, map_points, fmt='%6.3f')
+
+i = skip
 for point in map_points[skip:]:
     i += 1
     alt, az = point[1], point[0]
@@ -80,8 +103,10 @@ for point in map_points[skip:]:
         star, distance = get_nearby_star(star_catalog, alt * np.pi / 180, az * np.pi / 180)
         alt, az = star.alt.real * 180 / np.pi, star.az.real * 180 / np.pi
         os.system('echo %s | pbcopy' % star.name)
-        raw_input('Point Telescope to star %s (alt, az, dist): %s, %s, %.2f and press ENTER.' % (
-        star.name, star.alt, star.az, distance))
+        s = raw_input('Point Telescope to star %s (alt, az, dist): %s, %s, %.2f and press ENTER to verify S to skip' % (
+            star.name, star.alt, star.az, distance))
+        if s == 'S':
+            continue
     else:
         print('Pointing telescope...')
         print('chimera-tel --slew --alt %.2f --az %2.f' % (alt, az))
@@ -91,5 +116,6 @@ for point in map_points[skip:]:
         plt.draw()
     print('Verifying pointing...')
     print('chimera-pverify --here')
+    os.system('ssh lna chimera-pverify --here')
     print('\a')  # Ring a bell when done.
     raw_input('Press ENTER for next pointing.')
