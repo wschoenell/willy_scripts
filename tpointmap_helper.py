@@ -1,9 +1,10 @@
+# coding=utf-8
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-pointings = 200
-skip = 49  # Use this to skip N first pointings to resume a model session
+pointings = 20
+skip = 0  # Use this to skip N first pointings to resume a model session
 altitude_min = 25
 altitude_max = 85
 azimuth_min = 5
@@ -13,10 +14,18 @@ save_file = None  # 'dome_pointing.txt'  # None
 load_file = None  # 'lna_dome_model_data.txt'  # None
 
 use_starname = True  # Use this if the method does not support pointing by chimera
-use_mac_clipboard = True  # Will copy name of the stars to the clipboard. Only works on mac.
-obs_lat = "-22:32:04"
-obs_long = "-45:34:57"
-obs_elev = 1864
+use_mac_clipboard = False  # Will copy name of the stars to the clipboard. Only works on mac.
+# LNA
+# obs_lat = "-22:32:04"
+# obs_long = "-45:34:57"
+# obs_elev = 1864
+# chimera_prefix = 'ssh lna'
+# UFSC
+obs_lat = "-27:36:12.286"
+obs_long = "-48:31:20.535"
+obs_elev = 25
+chimera_prefix = 'ssh 150.162.131.89'
+
 star_catalogfile = 'SAO.edb'
 
 if use_starname:
@@ -109,13 +118,13 @@ for point in map_points[skip:]:
             continue
     else:
         print('Pointing telescope...')
-        print('chimera-tel --slew --alt %.2f --az %2.f' % (alt, az))
+        os.system('%s chimera-tel --slew --alt %.2f --az %2.f' % (chimera_prefix, alt, az))
     if plot:
         ax.scatter(point[0] * np.pi / 180, 90 - point[1], color='b', s=10)
         ax.set_title("%d of %d done" % (i - 1, pointings), va='bottom')
         plt.draw()
     print('Verifying pointing...')
     print('chimera-pverify --here')
-    os.system('ssh lna chimera-pverify --here')
+    os.system('%s chimera-pverify --here' % chimera_prefix)
     print('\a')  # Ring a bell when done.
     raw_input('Press ENTER for next pointing.')
