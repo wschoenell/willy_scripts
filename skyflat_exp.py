@@ -75,7 +75,7 @@ for filter_id in sys.argv[-1].split(','):
         print count_median
 
         popt, pcov = curve_fit(expArg, sun_alt, count_median, maxfev=100000000, p0=[2000000, 100, 100])
-        print filter_id, popt[0], popt[1], popt[2]
+        print "'%s': [%.2f, %.2f, %.2f]" % (filter_id, popt[0], popt[1], popt[2])
         coefficients[filter_id] = [popt[0], popt[1], popt[2]]
         x = np.linspace(np.min(sun_alt), np.max(sun_alt), 100)
         pl.plot(x * 57.30, expArg(x, popt[0], popt[1], popt[2]), color=colors[i_color])
@@ -86,3 +86,6 @@ for filter_id in sys.argv[-1].split(','):
         i_color += 1
 
 pl.legend()
+pl.show()
+
+raw_input('Press ENTER to exit')
