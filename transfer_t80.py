@@ -32,6 +32,26 @@ def red(s):
 def green(s):
     return color.GREEN + s + color.END
 
+header_html = """
+<center>
+<h1> T80S file server </h1>
+Contact: wschoenell@gmail.com
+
+</center>
+
+<h2>How to download:</h2>
+<pre>
+1 - Download the csv file corresponding to the desired night based on object name list below.
+2 - Filter only the objects that you want to download on using egrep.
+    Example: egrep -i '(dark|skyflat|ABELL_209)' filelist_nonono.csv > download.sh
+3 - Run the script file you made on the download directory: bash download.sh
+</pre>
+
+The csv file haves also image_type, object_name, filter, filename keywords for more advanced filtering.
+
+<h2>Object names per night:</h2>
+"""
+
 if len(sys.argv) < 6:
     print bold(red("Usage: %s nights_number object_file path remote http_root" % sys.argv[0]))
     sys.exit(1)
@@ -48,12 +68,13 @@ else:
 with open(object_file) as f:
     object_list = f.readlines()
 
-object_list = [o.strip().upper() for o in object_list]
+object_list = [o.upper().replace(' ', '').strip() for o in object_list]
 
 
 for night in range(nights_number):
     this_night = (jd_day - dt.timedelta(days=night)).date().strftime("%Y%m%d")
     image_dir = '%s/%s/' % (path, this_night)
+    objects_html = list()
     transfer_list = list()
     targets_list = list()
     print bold('Reading directory: %s' % image_dir)
@@ -62,27 +83,39 @@ for night in range(nights_number):
     else:
         for root, directory, files in os.walk(image_dir):
             for filename in fnmatch.filter(files, "*.fits"):
-                header = fits.getheader('%s/%s' % (root, filename))
+                try:
+                    header = fits.getheader('%s/%s' % (root, filename))
+                except IOError:
+                    continue
                 try:
                     filter_name = header['FILTER']
                 except KeyError:
                     filter_name = None
                 try:
-                    objname = header['OBJECT'].upper()
+                    objname = header['OBJECT'].upper().replace(' ', '')
                 except KeyError:
                     objname = None
                 try:
-                    objname = header['OBJECT'].upper()
-                    print('Filename: %s - Object: %s' % (filename, objname))
-                    if objname in object_list:
-                        transfer_list.append('%s/%s\n' % (root, filename))
-                        targets_list.append('wget -c %s/%s/%s #,%s,%s,%s,%s\n' %
-                                            (http_root, this_night, filename.strip(), header['IMAGETYP'], objname,
-                                             filter_name, filename))
+                    imagetype = header['IMAGETYP'].upper()
                 except KeyError:
-                    print bold(red('Skipping %s. No IMAGETYP keyword.' % filename))
+                    imagetype = None
+
+                print('Filename: %s - Object: %s' % (filename, objname))
+                if objname in object_list or imagetype in object_list:
+                    if objname is not None:
+                        objects_html.append(objname)
+                    transfer_list.append('%s/%s\n' % (this_night, filename))
+                    targets_list.append('wget -c %s/%s/%s #,%s,%s,%s,%s\n' %
+                                        (http_root, this_night, filename.strip(), header['IMAGETYP'], objname,
+                                         filter_name, filename))
 
     if len(transfer_list) > 0:
+        aux = list(set(objects_html))
+        aux.sort()
+        header_html += "<b>%s:</b> <pre>" % this_night
+        header_html += ', '.join(aux)
+        header_html += "</pre>"
+
         print bold(green('Transfering night: %s...' % night))
 
         # Create directories...
@@ -101,14 +134,21 @@ for night in range(nights_number):
         print(bold('Running: ')+cmd)
         os.system(cmd)
         cmd = 'rsync -av --progress %s %s/' % (aux_filenames, remote)
+        print(bold('Running: ')+cmd)
         os.system(cmd)
 
         # Transfer files
         aux_filenames = tempfile.mktemp()
         with open(aux_filenames, 'w') as f:
             f.writelines(transfer_list)
+        cmd = 'rsync -av --progress --files-from=%s %s %s/' % (aux_filenames, path, remote)
         print(bold('Running: ')+cmd)
-        cmd = 'rsync -av --progress --include-from %s %s/%s/' % (aux_filenames, remote, this_night)
         os.system(cmd)
         os.unlink(aux_filenames)
+
+with open('HEADER.html', 'w') as f:
+    f.write(header_html)
+cmd = 'rsync -av --progress HEADER.html %s/' % remote
+print(bold('Running: ')+cmd)
+os.system(cmd)
 
