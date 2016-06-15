@@ -1,5 +1,6 @@
 # coding=utf-8
 import os
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,8 +11,9 @@ altitude_max = 85
 azimuth_min = 5
 azimuth_max = 346
 plot = True
-save_file = None  # 'dome_pointing.txt'  # None
-load_file = None  # 'lna_dome_model_data.txt'  # None
+save_file_pointings = None  # 'dome_pointing.txt'  # None
+save_file_done = 'pointings_done.txt'
+load_file = None #'pointings_done.txt'  # 'lna_dome_model_data.txt'  # None
 
 use_starname = True  # Use this if the method does not support pointing by chimera
 use_mac_clipboard = False  # Will copy name of the stars to the clipboard. Only works on mac.
@@ -24,15 +26,17 @@ use_mac_clipboard = False  # Will copy name of the stars to the clipboard. Only 
 obs_lat = "-27:36:12.286"
 obs_long = "-48:31:20.535"
 obs_elev = 25
-chimera_prefix = 'ssh 150.162.131.89'
+chimera_prefix = 'ssh ufsc'
+# chimera_prefix = 'ssh 150.162.131.89'
 
 star_catalogfile = 'SAO.edb'
+# star_catalogfile = 'NGC.edb'
 
 if use_starname:
     import ephem
 
     with open(star_catalogfile) as f:
-        star_catalog = [ephem.readdb(l) for l in f.readlines()]
+        star_catalog = [ephem.readdb(l) for l in f.readlines() if not l.startswith('#')]
 
 
 def get_nearby_star(catalog, alt, az):
@@ -99,8 +103,13 @@ if plot:
     # plt.show()
     plt.draw()
 
-if save_file is not None:
-    np.savetxt(save_file, map_points, fmt='%6.3f')
+if save_file_pointings is not None:
+    np.savetxt(save_file_pointings, map_points, fmt='%6.3f')
+
+if save_file_done is not None:
+    file_pointings = open(save_file_done, 'a+')
+    file_pointings.write(
+        '# Measurements below initiated on %s\n# azimuth (deg)    altitude (deg)\n' % datetime.datetime.utcnow().strftime('%Y%m%d %H:%M:%S UTC'))
 
 i = skip
 for point in map_points[skip:]:
@@ -112,10 +121,13 @@ for point in map_points[skip:]:
         star, distance = get_nearby_star(star_catalog, alt * np.pi / 180, az * np.pi / 180)
         alt, az = star.alt.real * 180 / np.pi, star.az.real * 180 / np.pi
         os.system('echo %s | pbcopy' % star.name)
-        s = raw_input('Point Telescope to star %s (alt, az, dist): %s, %s, %.2f and press ENTER to verify S to skip' % (
-            star.name, star.alt, star.az, distance))
+        s = raw_input(
+            'Point Telescope to star %s (alt, az, dist): %s, %s, %.2f and press ENTER to verify S to skip. E to exit.' % (
+                star.name, star.alt, star.az, distance))
         if s == 'S':
             continue
+        elif s == 'E':
+            break
     else:
         print('Pointing telescope...')
         os.system('%s chimera-tel --slew --alt %.2f --az %2.f' % (chimera_prefix, alt, az))
@@ -127,4 +139,12 @@ for point in map_points[skip:]:
     print('chimera-pverify --here')
     os.system('%s chimera-pverify --here' % chimera_prefix)
     print('\a')  # Ring a bell when done.
-    raw_input('Press ENTER for next pointing.')
+    if save_file_done is not None:
+        s = raw_input('Type N if this pointing was not okay or ENTER for the next pointing.')
+        if s.lower() != 'n':
+            file_pointings.write('%s    %s\n' % (az, alt))
+    else:
+        raw_input('Press ENTER for next pointing.')
+
+if save_file_pointings is not None:
+    file_pointings.close()
