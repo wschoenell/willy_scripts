@@ -1,15 +1,17 @@
-import pymongo
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-
+import cStringIO
 import sys
+import urllib2
 
-# Set to True to FORCE allsky image reclassification
+import matplotlib.pyplot as plt
+import numpy as np
+import pymongo
+from PIL import Image
+
 reclassify = True
 host = "192.168.20.118"
-allsky_dir = "/Volumes/public/allsky/"
-file_list = np.loadtxt('skyflats_v1610.list', dtype='S60')
+# allsky_dir = "/Volumes/public/allsky/"
+allsky_dir = "http://139.229.20.220/images/"
+file_list = np.loadtxt('/Users/william/Downloads/lix2_sk.list', dtype='S60')
 
 client = pymongo.MongoClient(host)
 fig = plt.figure(1)
@@ -54,7 +56,12 @@ for file_check in file_list:
     elif data['quality'] != 0:
         print '%s: Quality already checked - %s' % (data["ALLSKY_FILENAME"], "GOOD" if data["quality"] == 1 else "BAD")
 
-    img = mpimg.imread('%s/%s.JPG' % (allsky_dir, data["ALLSKY_FILENAME"].split('.')[0]))
+    fname = '%s/%s.JPG' % (allsky_dir, data["ALLSKY_FILENAME"].split('.')[0])
+    try:
+        img = Image.open(cStringIO.StringIO(urllib2.urlopen(fname).read()))
+    except ValueError, e:
+        print "Skipped %s. Exception: %s" % (fname, e)
+        continue
     plt.clf()
     plt.imshow(img)
     ax = plt.axes()
