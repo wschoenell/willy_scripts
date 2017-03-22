@@ -1,14 +1,13 @@
-import datetime
 import hashlib
 import os
+import re
 import sqlite3
 import tarfile
 
-import re
-
 # Mark True/False to check each part of backup.
 check_bkpdir = False
-check_tarfile = False
+check_tarfile = True
+calculate_diff = False
 drop_tarfile_table = True
 
 # local test
@@ -21,7 +20,6 @@ backup_directory = "/mnt/data/cam01/data/images/"
 files_prefix = '^/mnt/data/cam01/data/images/'  # Will remove this prefix from filenames.
 tar_file = "/dev/nsa0"
 
-
 hash_type = 'md5'
 db_file = "backup_data.db"
 
@@ -31,13 +29,13 @@ c = conn.cursor()
 if drop_tarfile_table:
     try:
         c.execute("DROP TABLE md5_backup")
+        conn.commit()
     except sqlite3.OperationalError:  # If db does not exists
         pass
 
-
 try:
-    c.execute("CREATE TABLE md5_files (filename text, md5 text)")
     c.execute("CREATE TABLE md5_backup (filename text, md5 text)")
+    c.execute("CREATE TABLE md5_files (filename text, md5 text)")
     conn.commit()
 except sqlite3.OperationalError:  # If db already exists
     pass
@@ -91,5 +89,23 @@ if check_tarfile:
                 conn.commit()
             else:
                 print "Skipping tar file %s" % member.name
+
+# Calculate difference between two tables of backup to validate it.
+if calculate_diff:
+    c.execute("select * from md5_files a left join md5_backup b on (a.filename = b.filename)")
+    missing = list()
+    bad_md5 = list()
+    for out in c:
+        # output of query is: local_filename, local_md5, tape_filename, tape_md5
+        ## Check both MD5
+        if out[3] is None:
+            missing.append(out[0])
+        elif out[3] != out[1]:
+            bad_md5.append(out)
+    print "#" * 50 + " BACKUP REPORT " + "#" * 50
+    print "#" * 50 + " missing files " + "#" * 50
+    print "\n".join(missing)
+    print "#" * 50 + "    bad md5    " + "#" * 50
+    print "\n".join(["\t".join(i) for i in bad_md5])
 
 conn.close()
