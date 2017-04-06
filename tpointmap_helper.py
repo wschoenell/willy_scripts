@@ -3,9 +3,10 @@ import os
 import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
-pointings = 20
-skip = 0  # Use this to skip N first pointings to resume a model session
+pointings = 200
+skip = 83
 altitude_min = 25
 altitude_max = 85
 azimuth_min = 5
@@ -13,20 +14,20 @@ azimuth_max = 346
 plot = True
 save_file_pointings = None  # 'dome_pointing.txt'  # None
 save_file_done = 'pointings_done.txt'
-load_file = None #'pointings_done.txt'  # 'lna_dome_model_data.txt'  # None
+load_file = None #'pointings_done.txt' #'TPoint_skip_helper.txt' #'pointings_done.txt'  # 'lna_dome_model_data.txt'  # None
 
-use_starname = True  # Use this if the method does not support pointing by chimera
-use_mac_clipboard = False  # Will copy name of the stars to the clipboard. Only works on mac.
+use_starname = True #True  # Use this if the method does not support pointing by chimera
+is_mac = True  # Will copy name of the stars to the clipboard. Only works on mac.
 # LNA
-# obs_lat = "-22:32:04"
-# obs_long = "-45:34:57"
-# obs_elev = 1864
-# chimera_prefix = 'ssh lna'
+obs_lat = "-22:32:04"
+obs_long = "-45:34:57"
+obs_elev = 1864
+#chimera_prefix = 'ssh lna'
 # UFSC
-obs_lat = "-27:36:12.286"
-obs_long = "-48:31:20.535"
-obs_elev = 25
-chimera_prefix = 'ssh ufsc'
+# obs_lat = "-27:36:12.286"
+# obs_long = "-48:31:20.535"
+# obs_elev = 25
+# chimera_prefix = 'ssh ufsc'
 # chimera_prefix = 'ssh 150.162.131.89'
 
 star_catalogfile = 'SAO.edb'
@@ -82,9 +83,9 @@ if load_file is not None:
         offset = 0
         for i in range(len(map_points)):
             map_point = map_points[i - offset]
-            if np.sqrt((point_load[0] - map_point[0]) ** 2 + (point_load[1] - map_point[1]) ** 2) < 4:
+            if np.sqrt((point_load[0] - map_point[0]) ** 2 + (point_load[1] - map_point[1]) ** 2) < 6:
                 skip_too_close.append(map_point)
-                map_points = np.delete(map_points, i, axis=0)
+                map_points = np.delete(map_points, i - offset, axis=0)
                 offset += 1
     skip_too_close = np.array(skip_too_close)
 
@@ -92,10 +93,10 @@ if plot:
     plt.clf()
     ax = plt.subplot(111, projection='polar')
     ax.set_theta_zero_location("N")
-    ax.scatter(map_points[:, 0] * np.pi / 180., 90 - map_points[:, 1], color='r', alpha=50, s=20)
+    ax.plot(map_points[:, 0] * np.pi / 180., 90 - map_points[:, 1], '.', color='red', alpha=50) #, s=20)
     if load_file is not None:
-        ax.scatter(load_model[0] * np.pi / 180., 90 - load_model[1], color='green', s=20)
-        ax.scatter(skip_too_close[:, 0] * np.pi / 180., 90 - skip_too_close[:, 1], color='black', s=20)
+        ax.plot(load_model[0] * np.pi / 180., 90 - load_model[1], '.', color='green') #, s=20)
+        ax.plot(skip_too_close[:, 0] * np.pi / 180., 90 - skip_too_close[:, 1], '.', color='black') #, s=20)
         print 'Skip %d' % len(skip_too_close)
     ax.grid(True)
     ax.set_ylim(90 - altitude_min + 10, 0)
@@ -112,39 +113,51 @@ if save_file_done is not None:
         '# Measurements below initiated on %s\n# azimuth (deg)    altitude (deg)\n' % datetime.datetime.utcnow().strftime('%Y%m%d %H:%M:%S UTC'))
 
 i = skip
-for point in map_points[skip:]:
+for point in map_points[::-1][skip:]:
     i += 1
     alt, az = point[1], point[0]
     print('Point: # %i (alt, az): %.2f %2f' % (i, alt, az))
     # If a star name is needed to the method of pointing model, get the nearest star from the desired point.
+    star, distance = get_nearby_star(star_catalog, alt * np.pi / 180, az * np.pi / 180)
     if use_starname:
-        star, distance = get_nearby_star(star_catalog, alt * np.pi / 180, az * np.pi / 180)
         alt, az = star.alt.real * 180 / np.pi, star.az.real * 180 / np.pi
-        os.system('echo %s | pbcopy' % star.name)
+        if is_mac:
+            os.system('echo %s | pbcopy' % star.name)
+        else:
+            os.system('echo %s | xclip' % star.name)
         s = raw_input(
-            'Point Telescope to star %s (alt, az, dist): %s, %s, %.2f and press ENTER to verify S to skip. E to exit.' % (
+            'Point Telescope to star %s (alt, az, dist): %s, %s, %.2f and press ENTER to verify S to skip. E to exit. D to mark as done.' % (
                 star.name, star.alt, star.az, distance))
         if s == 'S':
             continue
         elif s == 'E':
             break
+        elif s == 'D':
+            file_pointings.write('%s    %s\n' % (az, alt))
+            continue
     else:
         print('Pointing telescope...')
-        os.system('%s chimera-tel --slew --alt %.2f --az %2.f' % (chimera_prefix, alt, az))
+        os.system('%s chimera-tel --slew --object %s' % star.name)
+        # os.system('%s chimera-tel --start')
     if plot:
-        ax.scatter(point[0] * np.pi / 180, 90 - point[1], color='b', s=10)
+        ax.plot(point[0] * np.pi / 180, 90 - point[1], '.', color='blue') #, s=10)
         ax.set_title("%d of %d done" % (i - 1, pointings), va='bottom')
         plt.draw()
     print('Verifying pointing...')
+    t0 = time.time()
     print('chimera-pverify --here')
     os.system('%s chimera-pverify --here' % chimera_prefix)
-    print('\a')  # Ring a bell when done.
+    # os.system('%s chimera-cam -t10 -o qual' % chimera_prefix)
+    if is_mac:
+        os.system("say done")
+    else:
+        print('\a')  # Ring a bell when done.
     if save_file_done is not None:
-        s = raw_input('Type N if this pointing was not okay or ENTER for the next pointing.')
+        s = raw_input('Took %3.2fs.Type N if this pointing was not okay or ENTER for the next pointing.' % (time.time() - t0))
         if s.lower() != 'n':
             file_pointings.write('%s    %s\n' % (az, alt))
     else:
-        raw_input('Press ENTER for next pointing.')
+        print 'Done.'
 
 if save_file_pointings is not None:
     file_pointings.close()
