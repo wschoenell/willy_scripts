@@ -43,8 +43,15 @@ else:
     if sys.argv[3] != 'morning':
         filter_order.reverse()
     scheduler_yaml = header_yaml
-    skyflat_filters = list(query)[:int(sys.argv[1])]
+    skyflat_filters = list(query)
+    # put on top of the list those filters that have no flat at all!
+    # this happens when telescope is out of service for several nights.
     skyflat_filters = [i['_id'] for i in skyflat_filters]
+    for filter_id in filter_order:
+        if filter_id not in skyflat_filters:
+            skyflat_filters = [filter_id] + skyflat_filters
+    # limit the list
+    skyflat_filters = skyflat_filters[:int(sys.argv[1])]
     for filter_id in filter_order:
         if filter_id in skyflat_filters:
             scheduler_yaml += skyflat_yaml.format(**dict(filter=filter_id, frames=sys.argv[2]))

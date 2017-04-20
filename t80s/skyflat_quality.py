@@ -9,8 +9,8 @@ from PIL import Image
 
 reclassify = True
 host = "192.168.20.118"
-# allsky_dir = "/Volumes/public/allsky/"
-allsky_dir = "http://139.229.20.220/images/"
+allsky_dir = "file:///Volumes/public/allsky_2/"
+# allsky_dir = "http://139.229.20.220/images/"
 file_list = np.loadtxt('/Users/william/Downloads/lix2_sk.list', dtype='S60')
 
 client = pymongo.MongoClient(host)
@@ -48,7 +48,7 @@ for file_check in file_list:
         continue
 
     if data['quality'] == 3:
-        print 'No AllSky images within 10 minutes for %s' % file_check
+        print 'No AllSky images within 15 minutes for %s' % file_check
         continue
     elif data['quality'] != 0 and not reclassify:
         print 'Skipping %s. Quality already checked.' % data["SKYFLAT_FILENAME"]
