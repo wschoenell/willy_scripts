@@ -2,6 +2,13 @@ import datetime as dt
 import sys
 
 import pymongo
+import ephem
+
+observer = ephem.Observer()
+observer.lat = "-30:10:04.31"
+observer.lon = "-70:48:20.48"
+observer.elevation = 2178
+moon = ephem.Moon()
 
 host = '192.168.20.118'
 # host = None
@@ -9,14 +16,22 @@ host = '192.168.20.118'
 client = pymongo.MongoClient(host=host)
 
 
-def print_data(query):
+def print_data(query, print_moonpos=True):
     for obj in query:
         if 'OBJECT' in obj.keys():
             if not "FILTER" in obj.keys():
                 print('echo "Downloading {OBJECT}. Night {_night}, Exptime = {EXPTIME}"'.format(**obj))
             else:
-                print(
-                    'echo "Downloading {OBJECT}. Night {_night}, Filter = {FILTER}, Exptime = {EXPTIME}"'.format(**obj))
+                s = 'echo "Downloading {OBJECT}. Night {_night}, Filter = {FILTER}, Exptime = {EXPTIME}"'.format(**obj)
+                if print_moonpos:
+                    body = ephem.FixedBody()
+                    body._ra = obj["RA"]
+                    body._dec = obj["RA"]
+                    observer.date = dt.datetime.strptime(obj['DATE-OBS'], '%Y-%m-%dT%H:%M:%S.%f')
+                    moon.compute(observer)
+                    body.compute(observer)
+                    s += ", moon_alt: %3.2f deg, moon_dist: %3.2f deg" % (moon.alt, ephem.separation(moon, body) * 57.2957795)
+                print(s)
         elif 'IMAGETYP' in obj.keys():
             print('echo "Bias"')
         else:
