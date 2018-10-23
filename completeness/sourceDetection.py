@@ -4,7 +4,7 @@ from astropy.io import fits
 import numpy as np
 
 dir_oriImages = './'
-ddrp = '' #''sextractor_'
+ddrp = ''  # ''sextractor_'
 dir_galsub = './'
 SEx = '/usr/local/bin/sex'
 sx_configFile = './sexconf.txt'
@@ -24,8 +24,8 @@ def SDetection(ima, wei, filter, thr=2, minarea=5, FWHMpix=2.5, conv="2.5"):
     PIXEL_SCALE = hdr['D001SCAL']
     # PIXEL_SCALE = hdr['PIXSCALE']
     SEEING_FWHM = FWHMpix * PIXEL_SCALE
-    dataADUs = data * EXPTIME
-    SATUR_LEVEL = 0.6 * np.max(dataADUs)
+    # dataADUs = data * EXPTIME
+    SATUR_LEVEL = 12000  # 0.6 * np.max(dataADUs)
     ZEROPOINT = mag_zp + 2.5 * np.log10(EXPTIME)
     sxBG = 32
     A = ' -CATALOG_NAME ' + 'photometry.cat '

@@ -16,30 +16,30 @@ import numpy as np
 from artificial_stars import add_stars
 from sourceDetection import SDetection
 
-# config = {"image": os.path.expanduser("~/data/completeness/UGC3816_f814w_res.fits"),
-#           "mask": os.path.expanduser("~/data/completeness/UGC3816_f814wmask.fits"),
-#           "weight": os.path.expanduser("~/data/completeness/UGC3816_f814wWHT.fits"),
-#           "psf": os.path.expanduser("~/data/completeness/psf_acs_f550m_dst.fits"),
-#           "filter": "f814w",
-#           "zero_point": 25.1243,
-#           "niter": 20,
-#           "obj_minsep": 40,  # pixels
-#           "n_stars": 500,
-#           "outfile": "UGC3816_f814w_completeness.json"
-#           }
-
-
-config = {"image": os.path.expanduser("~/data/completeness/UGC3816_f160w_res.fits"),
-          "mask": os.path.expanduser("~/data/completeness/UGC3816_f160wmask.fits"),
-          "weight": os.path.expanduser("~/data/completeness/UGC3816_f160wWHT.fits"),
+config = {"image": os.path.expanduser("~/data/completeness/UGC3816_f814w_res.fits"),
+          "mask": os.path.expanduser("~/data/completeness/UGC3816_f814wmask.fits"),
+          "weight": os.path.expanduser("~/data/completeness/UGC3816_f814wWHT.fits"),
           "psf": os.path.expanduser("~/data/completeness/psf_acs_f550m_dst.fits"),
-          "filter": "f160w",
-          "zero_point": 25.9463,
+          "filter": "f814w",
+          "zero_point": 25.1243,
           "niter": 20,
           "obj_minsep": 40,  # pixels
           "n_stars": 500,
-          "outfile": "UGC3816_f160w_completeness.json"
+          "outfile": "UGC3816_f814w_completeness.json"
           }
+
+
+# config = {"image": os.path.expanduser("~/data/completeness/UGC3816_f160w_res.fits"),
+#           "mask": os.path.expanduser("~/data/completeness/UGC3816_f160wmask.fits"),
+#           "weight": os.path.expanduser("~/data/completeness/UGC3816_f160wWHT.fits"),
+#           "psf": os.path.expanduser("~/data/completeness/psf_acs_f550m_dst.fits"),
+#           "filter": "f160w",
+#           "zero_point": 25.9463,
+#           "niter": 20,
+#           "obj_minsep": 40,  # pixels
+#           "n_stars": 500,
+#           "outfile": "UGC3816_f160w_completeness.json"
+#           }
 
 # run sextractor on the original image
 SDetection(config["image"], config["weight"], config["filter"])
@@ -67,7 +67,10 @@ for mag in np.arange(24, 28, 0.1):
         # plt.imshow(np.log10(img), cmap=plt.cm.gray)
 
         # save image
-        os.unlink("caca.fits")
+        try:
+            os.unlink("caca.fits")
+        except OSError:
+            pass
         fits.writeto("caca.fits", img, header=header)
 
         # source extraction
@@ -75,7 +78,15 @@ for mag in np.arange(24, 28, 0.1):
         catalog_sex = ascii.SExtractor().read("photometry.cat")
 
         # filter objects with GOOD flags
-        # catalog_sex = catalog_sex[catalog_sex['FLAGS'] == 0]
+        catalog_sex = catalog_sex[catalog_sex['FLAGS'] == 0]
+        # limit magnitude error
+        catalog_sex = catalog_sex[catalog_sex['MAGERR_ISO'] <= 0.2]
+        # limit FWHM
+        catalog_sex = catalog_sex[catalog_sex['FWHM_IMAGE'] > 1.0]
+        catalog_sex = catalog_sex[catalog_sex['FWHM_IMAGE'] < 4.0]
+        # limit stellarity
+        catalog_sex = catalog_sex[catalog_sex['CLASS_STAR'] >= 0.5]
+
 
         # catalog matching
         xypos = SkyCoord(xypos[:, 1], xypos[:, 0], 0, representation='cartesian')
@@ -83,7 +94,7 @@ for mag in np.arange(24, 28, 0.1):
         catalog = SkyCoord(np.array(catalog_sex['X_IMAGE']), np.array(catalog_sex['Y_IMAGE']), 0,
                            representation='cartesian')
         idx, sep2d, _ = xypos.match_to_catalog_3d(catalog)
-        catalog_stars = catalog_sex[idx[np.array(sep2d) < 0.1]]
+        catalog_stars = catalog_sex[idx[np.array(sep2d) < 0.01]]
         #
         # catalog_stars.write('test.dat', format='ascii.commented_header', overwrite=True)
 
